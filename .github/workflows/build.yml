@@ -4,12 +4,18 @@ on:
   push:
     tags:
       - 'v*'
+    branches: [ main, master ]
   pull_request:
     branches: [ master, main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  packages: write
+
 env:
   GO_VERSION: '1.21'
+  GOSEC_VERSION: 'v2.17.0'
 
 jobs:
   test:
@@ -37,19 +43,39 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
-    - name: Run tests
-      run: go test -v ./...
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Run tests and coverage
+      run: go test -v ./tests/... -coverprofile=coverage.out -covermode=atomic
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
 
     - name: Run go vet
       run: go vet ./...
 
-    - name: Run go fmt
+    - name: Run go fmt check
       run: |
         if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
           echo "The following files are not formatted:"
           gofmt -s -l .
           exit 1
         fi
+
+    - name: Run Gosec Security Scanner
+      uses: securecodewarrior/github-action-gosec@master
+      with:
+        args: '-no-fail -fmt sarif -out results.sarif ./...'
+
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: results.sarif
 
   build:
     name: Build
@@ -121,6 +147,13 @@ jobs:
         CGO_ENABLED: 0
       run: |
         go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o ${{ matrix.output }} main.go
+
+    - name: Verify binary
+      run: |
+        if [ "${{ matrix.os }}" != "windows-latest" ]; then
+          file ${{ matrix.output }}
+          ls -la ${{ matrix.output }}
+        fi
 
     - name: Create archive (Unix)
       if: matrix.os != 'windows-latest'
@@ -264,6 +297,10 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        build-args: |
+          VERSION=${{ github.ref_name }}
+          BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          COMMIT_SHA=${{ github.sha }}
 
   update-homebrew:
     name: Update Homebrew formula
@@ -276,5 +313,4 @@ jobs:
       with:
         token: ${{ secrets.HOMEBREW_TOKEN }}
         formula: bbdown
-        base-branch: master
         force: true
