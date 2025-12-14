@@ -3,7 +3,7 @@ package util_test
 import (
 	"strings"
 	"testing"
-	
+
 	"github.com/tekintian/go-bbdown/util"
 )
 
@@ -223,7 +223,7 @@ func TestExtractVideoID(t *testing.T) {
 
 func TestBVConverter(t *testing.T) {
 	converter := util.NewBVConverter()
-	
+
 	tests := []struct {
 		name    string
 		av      string

@@ -56,7 +56,7 @@ type VInfo struct {
 
 // Owner UP主信息
 type Owner struct {
-	Mid  int64 `json:"mid"`
+	Mid  int64  `json:"mid"`
 	Name string `json:"name"`
 }
 
@@ -155,23 +155,23 @@ type CheeseInfo struct {
 
 // SeasonInfo 合集信息
 type SeasonInfo struct {
-	SeasonID    string      `json:"season_id"`
-	SeasonName  string      `json:"season_name"`
-	Description string      `json:"description"`
-	TotalCount  int         `json:"total_count"`
+	SeasonID    string        `json:"season_id"`
+	SeasonName  string        `json:"season_name"`
+	Description string        `json:"description"`
+	TotalCount  int           `json:"total_count"`
 	Videos      []SeasonVideo `json:"videos"`
 }
 
 // SeasonVideo 合集中的视频
 type SeasonVideo struct {
-	Aid       int64  `json:"aid"`
-	Bvid      string `json:"bvid"`
-	Cid       int64  `json:"cid"`
-	Title     string `json:"title"`
-	Duration  int    `json:"duration"`
-	Cover     string `json:"cover"`
-	Index     int    `json:"index"`
-	Part      string `json:"part"`
+	Aid      int64  `json:"aid"`
+	Bvid     string `json:"bvid"`
+	Cid      int64  `json:"cid"`
+	Title    string `json:"title"`
+	Duration int    `json:"duration"`
+	Cover    string `json:"cover"`
+	Index    int    `json:"index"`
+	Part     string `json:"part"`
 }
 
 // MediaListInfo 媒体列表信息
@@ -185,12 +185,12 @@ type MediaListInfo struct {
 
 // MediaVideo 媒体列表中的视频
 type MediaVideo struct {
-	Aid       int64  `json:"aid"`
-	Bvid      string `json:"bvid"`
-	Cid       int64  `json:"cid"`
-	Title     string `json:"title"`
-	Duration  int    `json:"duration"`
-	Cover     string `json:"cover"`
-	Index     int    `json:"index"`
-	Part      string `json:"part"`
+	Aid      int64  `json:"aid"`
+	Bvid     string `json:"bvid"`
+	Cid      int64  `json:"cid"`
+	Title    string `json:"title"`
+	Duration int    `json:"duration"`
+	Cover    string `json:"cover"`
+	Index    int    `json:"index"`
+	Part     string `json:"part"`
 }

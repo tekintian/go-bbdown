@@ -300,7 +300,7 @@ func RSubString(sub string) string {
 		return sub
 	}
 	sub = sub[lastSlash+1:]
-	
+
 	lastDot := strings.LastIndex(sub, ".")
 	if lastDot == -1 {
 		return sub

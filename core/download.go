@@ -880,7 +880,7 @@ func parseJSON(data string, v interface{}) error {
 // downloadSeason 下载合集
 func downloadSeason(id string, config *Config) error {
 	seasonID := strings.TrimPrefix(id, "season:")
-	
+
 	// 获取合集信息
 	seasonInfo, err := fetchSeasonInfo(seasonID, config)
 	if err != nil {
@@ -904,7 +904,7 @@ func downloadSeason(id string, config *Config) error {
 	// 下载每个视频
 	for i, video := range seasonInfo.Videos {
 		fmt.Printf("\n[%d/%d] 下载视频：%s\n", i+1, len(seasonInfo.Videos), video.Title)
-		
+
 		// 如果缺少aid或cid，先获取视频信息
 		if video.Aid == 0 || video.Cid == 0 {
 			vinfo, err := fetchVideoInfo(video.Bvid, config)
@@ -917,7 +917,7 @@ func downloadSeason(id string, config *Config) error {
 				video.Cid = vinfo.Pages[0].Cid
 			}
 		}
-		
+
 		// 转换为SeasonVideo类型
 		seasonVideo := SeasonVideo{
 			Aid:      video.Aid,
@@ -929,7 +929,7 @@ func downloadSeason(id string, config *Config) error {
 			Index:    video.Index,
 			Part:     video.Part,
 		}
-		
+
 		// 调用下载单个视频的函数
 		err := downloadSingleVideoByInfo(seasonVideo, config)
 		if err != nil {
@@ -945,7 +945,7 @@ func downloadSeason(id string, config *Config) error {
 // downloadMediaList 下载媒体列表
 func downloadMediaList(id string, config *Config) error {
 	medialistID := strings.TrimPrefix(id, "medialist:")
-	
+
 	// 获取媒体列表信息
 	medialistInfo, err := fetchMediaListInfo(medialistID, config)
 	if err != nil {
@@ -969,7 +969,7 @@ func downloadMediaList(id string, config *Config) error {
 	// 下载每个视频
 	for i, video := range medialistInfo.Videos {
 		fmt.Printf("\n[%d/%d] 下载视频：%s\n", i+1, len(medialistInfo.Videos), video.Title)
-		
+
 		// 如果缺少aid或cid，先获取视频信息
 		if video.Aid == 0 || video.Cid == 0 {
 			vinfo, err := fetchVideoInfo(video.Bvid, config)
@@ -982,7 +982,7 @@ func downloadMediaList(id string, config *Config) error {
 				video.Cid = vinfo.Pages[0].Cid
 			}
 		}
-		
+
 		// 转换为SeasonVideo类型
 		seasonVideo := SeasonVideo{
 			Aid:      video.Aid,
@@ -994,7 +994,7 @@ func downloadMediaList(id string, config *Config) error {
 			Index:    video.Index,
 			Part:     video.Part,
 		}
-		
+
 		// 调用下载单个视频的函数
 		err := downloadSingleVideoByInfo(seasonVideo, config)
 		if err != nil {
@@ -1273,28 +1273,28 @@ func downloadSingleVideoByInfo(video SeasonVideo, config *Config) error {
 // fetchSeasonInfo 获取合集信息
 func fetchSeasonInfo(seasonID string, config *Config) (*SeasonInfo, error) {
 	client := NewHTTPClient()
-	
+
 	// 尝试API端点
 	api := fmt.Sprintf("https://api.bilibili.com/x/space/season/video_list?season_id=%s&ps=30&jsonp=jsonp", seasonID)
-	
+
 	resp, err := client.GetWebSource(api, config.UserAgent)
 	if err != nil {
 		return nil, fmt.Errorf("API调用失败: %w", err)
 	}
-	
+
 	// 尝试不同的解析方式
 	parsers := []func(string) (*SeasonInfo, error){
 		parseSeasonFromSpaceAPI,
 		parseSeasonFromMedialistAPI,
 		parseSeasonFromSpaceSeasonAPI,
 	}
-	
+
 	for _, parser := range parsers {
 		if seasonInfo, err := parser(resp); err == nil && seasonInfo != nil {
 			return seasonInfo, nil
 		}
 	}
-	
+
 	// 如果API解析都失败，尝试网页解析
 	webURL := fmt.Sprintf("https://space.bilibili.com/89320896/lists/%s?type=season", seasonID)
 	webResp, webErr := client.GetWebSource(webURL, config.UserAgent)
@@ -1307,7 +1307,7 @@ func fetchSeasonInfo(seasonID string, config *Config) (*SeasonInfo, error) {
 // parseSeasonFromSpaceAPI 从空间API解析合集信息
 func parseSeasonFromSpaceAPI(resp string) (*SeasonInfo, error) {
 	var response struct {
-		Code    int `json:"code"`
+		Code    int    `json:"code"`
 		Message string `json:"message"`
 		Data    struct {
 			SeasonID    string `json:"season_id"`
@@ -1315,14 +1315,14 @@ func parseSeasonFromSpaceAPI(resp string) (*SeasonInfo, error) {
 			Description string `json:"description"`
 			TotalCount  int    `json:"total"`
 			Archives    []struct {
-				Aid       int64  `json:"aid"`
-				Bvid      string `json:"bvid"`
-				Cid       int64  `json:"cid"`
-				Title     string `json:"title"`
-				Duration  int    `json:"duration"`
-				Cover     string `json:"cover"`
-				Index     int    `json:"index"`
-				Part      string `json:"part"`
+				Aid      int64  `json:"aid"`
+				Bvid     string `json:"bvid"`
+				Cid      int64  `json:"cid"`
+				Title    string `json:"title"`
+				Duration int    `json:"duration"`
+				Cover    string `json:"cover"`
+				Index    int    `json:"index"`
+				Part     string `json:"part"`
 			} `json:"archives"`
 		} `json:"data"`
 	}
@@ -1360,7 +1360,7 @@ func parseSeasonFromSpaceAPI(resp string) (*SeasonInfo, error) {
 // parseSeasonFromMedialistAPI 从medialist API解析合集信息
 func parseSeasonFromMedialistAPI(resp string) (*SeasonInfo, error) {
 	var medialistResponse struct {
-		Code    int `json:"code"`
+		Code    int    `json:"code"`
 		Message string `json:"message"`
 		Data    struct {
 			ID          string `json:"id"`
@@ -1368,14 +1368,14 @@ func parseSeasonFromMedialistAPI(resp string) (*SeasonInfo, error) {
 			Description string `json:"description"`
 			MediaCount  int    `json:"media_count"`
 			MediaList   []struct {
-				Aid       int64  `json:"aid"`
-				Bvid      string `json:"bvid"`
-				Cid       int64  `json:"cid"`
-				Title     string `json:"title"`
-				Duration  int    `json:"duration"`
-				Cover     string `json:"cover"`
-				Index     int    `json:"index"`
-				Part      string `json:"part"`
+				Aid      int64  `json:"aid"`
+				Bvid     string `json:"bvid"`
+				Cid      int64  `json:"cid"`
+				Title    string `json:"title"`
+				Duration int    `json:"duration"`
+				Cover    string `json:"cover"`
+				Index    int    `json:"index"`
+				Part     string `json:"part"`
 			} `json:"medias"`
 		} `json:"data"`
 	}
@@ -1413,7 +1413,7 @@ func parseSeasonFromMedialistAPI(resp string) (*SeasonInfo, error) {
 // parseSeasonFromSpaceSeasonAPI 从space season API解析合集信息
 func parseSeasonFromSpaceSeasonAPI(resp string) (*SeasonInfo, error) {
 	var spaceSeasonResponse struct {
-		Code    int `json:"code"`
+		Code    int    `json:"code"`
 		Message string `json:"message"`
 		Data    struct {
 			SeasonID    string `json:"season_id"`
@@ -1421,14 +1421,14 @@ func parseSeasonFromSpaceSeasonAPI(resp string) (*SeasonInfo, error) {
 			Description string `json:"description"`
 			TotalCount  int    `json:"total"`
 			Archives    []struct {
-				Aid       int64  `json:"aid"`
-				Bvid      string `json:"bvid"`
-				Cid       int64  `json:"cid"`
-				Title     string `json:"title"`
-				Duration  int    `json:"duration"`
-				Cover     string `json:"cover"`
-				Index     int    `json:"index"`
-				Part      string `json:"part"`
+				Aid      int64  `json:"aid"`
+				Bvid     string `json:"bvid"`
+				Cid      int64  `json:"cid"`
+				Title    string `json:"title"`
+				Duration int    `json:"duration"`
+				Cover    string `json:"cover"`
+				Index    int    `json:"index"`
+				Part     string `json:"part"`
 			} `json:"archives"`
 		} `json:"data"`
 	}
@@ -1472,19 +1472,19 @@ func parseSeasonFromWeb(html, seasonID string) (*SeasonInfo, error) {
 	if len(matches) < 2 {
 		return nil, fmt.Errorf("无法从网页中找到初始化数据")
 	}
-	
+
 	jsonStr := matches[1]
-	
+
 	// 解析JSON
 	var initialState map[string]interface{}
 	err := parseJSON(jsonStr, &initialState)
 	if err != nil {
 		return nil, fmt.Errorf("解析初始化数据失败: %w", err)
 	}
-	
+
 	// 尝试从不同的路径获取合集信息
 	var seasonData map[string]interface{}
-	
+
 	// 尝试路径1
 	if space, ok := initialState["space"].(map[string]interface{}); ok {
 		if seasons, ok := space["seasons"].(map[string]interface{}); ok {
@@ -1493,7 +1493,7 @@ func parseSeasonFromWeb(html, seasonID string) (*SeasonInfo, error) {
 			}
 		}
 	}
-	
+
 	// 尝试路径2
 	if seasonData == nil {
 		if seasons, ok := initialState["seasons"].(map[string]interface{}); ok {
@@ -1502,16 +1502,16 @@ func parseSeasonFromWeb(html, seasonID string) (*SeasonInfo, error) {
 			}
 		}
 	}
-	
+
 	if seasonData == nil {
 		// 尝试从网页中提取基本信息
 		return extractBasicSeasonInfo(html, seasonID)
 	}
-	
+
 	// 提取基本信息
 	seasonName := getStringFromMap(seasonData, "name")
 	description := getStringFromMap(seasonData, "description")
-	
+
 	// 提取视频列表
 	var videos []SeasonVideo
 	if archives, ok := seasonData["archives"].([]interface{}); ok {
@@ -1531,7 +1531,7 @@ func parseSeasonFromWeb(html, seasonID string) (*SeasonInfo, error) {
 			}
 		}
 	}
-	
+
 	return &SeasonInfo{
 		SeasonID:    seasonID,
 		SeasonName:  seasonName,
@@ -1550,17 +1550,17 @@ func extractBasicSeasonInfo(html, seasonID string) (*SeasonInfo, error) {
 	if len(titleMatches) > 1 {
 		seasonName = strings.TrimSpace(titleMatches[1])
 	}
-	
+
 	// 提取视频列表
 	videoRegex := regexp.MustCompile(`<a[^>]*href="([^"]*video/([^"]*))"[^>]*>.*?<span[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)</span>`)
 	videoMatches := videoRegex.FindAllStringSubmatch(html, -1)
-	
+
 	var videos []SeasonVideo
 	for i, match := range videoMatches {
 		if len(match) >= 4 {
 			bvid := match[2]
 			title := strings.TrimSpace(match[3])
-			
+
 			video := SeasonVideo{
 				Aid:      0, // 需要通过bvid获取
 				Bvid:     bvid,
@@ -1574,11 +1574,11 @@ func extractBasicSeasonInfo(html, seasonID string) (*SeasonInfo, error) {
 			videos = append(videos, video)
 		}
 	}
-	
+
 	if len(videos) == 0 {
 		return nil, fmt.Errorf("无法从网页中提取视频列表")
 	}
-	
+
 	return &SeasonInfo{
 		SeasonID:    seasonID,
 		SeasonName:  seasonName,
@@ -1637,10 +1637,10 @@ func min(a, b int) int {
 // fetchMediaListInfo 获取媒体列表信息
 func fetchMediaListInfo(medialistID string, config *Config) (*MediaListInfo, error) {
 	client := NewHTTPClient()
-	
+
 	// 获取媒体列表信息API
 	api := fmt.Sprintf("https://api.bilibili.com/x/v2/medialist/info?ml_id=%s", medialistID)
-	
+
 	resp, err := client.GetWebSource(api, config.UserAgent)
 	if err != nil {
 		return nil, err
@@ -1648,7 +1648,7 @@ func fetchMediaListInfo(medialistID string, config *Config) (*MediaListInfo, err
 
 	// 解析响应
 	var response struct {
-		Code    int `json:"code"`
+		Code    int    `json:"code"`
 		Message string `json:"message"`
 		Data    struct {
 			ID          string `json:"id"`
@@ -1656,14 +1656,14 @@ func fetchMediaListInfo(medialistID string, config *Config) (*MediaListInfo, err
 			Description string `json:"description"`
 			MediaCount  int    `json:"media_count"`
 			MediaList   []struct {
-				Aid       int64  `json:"aid"`
-				Bvid      string `json:"bvid"`
-				Cid       int64  `json:"cid"`
-				Title     string `json:"title"`
-				Duration  int    `json:"duration"`
-				Cover     string `json:"cover"`
-				Index     int    `json:"index"`
-				Part      string `json:"part"`
+				Aid      int64  `json:"aid"`
+				Bvid     string `json:"bvid"`
+				Cid      int64  `json:"cid"`
+				Title    string `json:"title"`
+				Duration int    `json:"duration"`
+				Cover    string `json:"cover"`
+				Index    int    `json:"index"`
+				Part     string `json:"part"`
 			} `json:"medias"`
 		} `json:"data"`
 	}
@@ -1707,7 +1707,7 @@ func formatDuration(seconds int) string {
 	h := seconds / 3600
 	m := (seconds % 3600) / 60
 	s := seconds % 60
-	
+
 	if h > 0 {
 		return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
 	}

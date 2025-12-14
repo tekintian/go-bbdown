@@ -31,7 +31,7 @@ func CreateFile(path string) (*os.File, error) {
 			return nil, err
 		}
 	}
-	
+
 	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 }
 
@@ -85,7 +85,7 @@ func WriteFile(path string, data []byte) error {
 			return err
 		}
 	}
-	
+
 	return os.WriteFile(path, data, 0644)
 }
 
@@ -107,19 +107,19 @@ func NewGzipReader(r io.Reader) (*GzipReader, error) {
 func CleanFilename(filename string) string {
 	// Windows不允许的字符
 	illegalChars := []string{"<", ">", ":", "\"", "|", "?", "*", "/", "\\"}
-	
+
 	for _, char := range illegalChars {
 		filename = strings.ReplaceAll(filename, char, "_")
 	}
-	
+
 	// 移除前后空格和点
 	filename = strings.Trim(filename, " .")
-	
+
 	// 如果文件名为空或为空字符串，返回默认名称
 	if filename == "" {
 		return "untitled"
 	}
-	
+
 	return filename
 }
 
@@ -140,11 +140,11 @@ func ReplaceFileExtension(filename, newExt string) string {
 	if ext != "" {
 		filename = filename[:len(filename)-len(ext)]
 	}
-	
+
 	if !strings.HasPrefix(newExt, ".") {
 		newExt = "." + newExt
 	}
-	
+
 	return filename + newExt
 }
 
@@ -174,11 +174,11 @@ func FormatDuration(seconds int) string {
 	if seconds < 0 {
 		return "00:00"
 	}
-	
+
 	hours := seconds / 3600
 	minutes := (seconds % 3600) / 60
 	secs := seconds % 60
-	
+
 	if hours > 0 {
 		return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, secs)
 	}
@@ -189,12 +189,12 @@ func FormatDuration(seconds int) string {
 func SanitizePath(path string) string {
 	// 统一使用正斜杠
 	path = strings.ReplaceAll(path, "\\", "/")
-	
+
 	// 移除重复的斜杠
 	for strings.Contains(path, "//") {
 		path = strings.ReplaceAll(path, "//", "/")
 	}
-	
+
 	return path
 }
 
