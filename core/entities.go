@@ -152,3 +152,45 @@ type CheeseInfo struct {
 	EpID       string `json:"ep_id"`
 	EpTitle    string `json:"ep_title"`
 }
+
+// SeasonInfo 合集信息
+type SeasonInfo struct {
+	SeasonID    string      `json:"season_id"`
+	SeasonName  string      `json:"season_name"`
+	Description string      `json:"description"`
+	TotalCount  int         `json:"total_count"`
+	Videos      []SeasonVideo `json:"videos"`
+}
+
+// SeasonVideo 合集中的视频
+type SeasonVideo struct {
+	Aid       int64  `json:"aid"`
+	Bvid      string `json:"bvid"`
+	Cid       int64  `json:"cid"`
+	Title     string `json:"title"`
+	Duration  int    `json:"duration"`
+	Cover     string `json:"cover"`
+	Index     int    `json:"index"`
+	Part      string `json:"part"`
+}
+
+// MediaListInfo 媒体列表信息
+type MediaListInfo struct {
+	ID          string       `json:"id"`
+	Title       string       `json:"title"`
+	Description string       `json:"description"`
+	TotalCount  int          `json:"total_count"`
+	Videos      []MediaVideo `json:"videos"`
+}
+
+// MediaVideo 媒体列表中的视频
+type MediaVideo struct {
+	Aid       int64  `json:"aid"`
+	Bvid      string `json:"bvid"`
+	Cid       int64  `json:"cid"`
+	Title     string `json:"title"`
+	Duration  int    `json:"duration"`
+	Cover     string `json:"cover"`
+	Index     int    `json:"index"`
+	Part      string `json:"part"`
+}

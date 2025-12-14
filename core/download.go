@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +30,14 @@ func Download(url string, config *Config) error {
 	id, err := util.ExtractVideoID(url)
 	if err != nil {
 		return err
+	}
+
+	// 检查是否是合集或媒体列表
+	if strings.HasPrefix(id, "season:") {
+		return downloadSeason(id, config)
+	}
+	if strings.HasPrefix(id, "medialist:") {
+		return downloadMediaList(id, config)
 	}
 
 	// 获取视频信息
@@ -218,6 +227,18 @@ func fetchVideoInfo(id string, config *Config) (*VInfo, error) {
 		ss := strings.TrimPrefix(id, "ss")
 		params = map[string]string{
 			"season_id": ss,
+		}
+	} else if strings.HasPrefix(id, "season:") {
+		idType = "season"
+		seasonID := strings.TrimPrefix(id, "season:")
+		params = map[string]string{
+			"season_id": seasonID,
+		}
+	} else if strings.HasPrefix(id, "medialist:") {
+		idType = "medialist"
+		medialistID := strings.TrimPrefix(id, "medialist:")
+		params = map[string]string{
+			"ml_id": medialistID,
 		}
 	} else {
 		return nil, fmt.Errorf("不支持的ID类型：%s", id)
@@ -854,4 +875,823 @@ func executeCommand(cmd []string) error {
 // parseJSON 解析JSON
 func parseJSON(data string, v interface{}) error {
 	return json.Unmarshal([]byte(data), v)
+}
+
+// downloadSeason 下载合集
+func downloadSeason(id string, config *Config) error {
+	seasonID := strings.TrimPrefix(id, "season:")
+	
+	// 获取合集信息
+	seasonInfo, err := fetchSeasonInfo(seasonID, config)
+	if err != nil {
+		return err
+	}
+
+	if config.OnlyShowInfo {
+		fmt.Printf("合集信息：\n")
+		fmt.Printf("标题：%s\n", seasonInfo.SeasonName)
+		fmt.Printf("描述：%s\n", seasonInfo.Description)
+		fmt.Printf("视频数量：%d\n", seasonInfo.TotalCount)
+		for i, video := range seasonInfo.Videos {
+			fmt.Printf("%d. %s (%s)\n", i+1, video.Title, formatDuration(video.Duration))
+		}
+		return nil
+	}
+
+	fmt.Printf("开始下载合集：%s\n", seasonInfo.SeasonName)
+	fmt.Printf("包含 %d 个视频\n", seasonInfo.TotalCount)
+
+	// 下载每个视频
+	for i, video := range seasonInfo.Videos {
+		fmt.Printf("\n[%d/%d] 下载视频：%s\n", i+1, len(seasonInfo.Videos), video.Title)
+		
+		// 如果缺少aid或cid，先获取视频信息
+		if video.Aid == 0 || video.Cid == 0 {
+			vinfo, err := fetchVideoInfo(video.Bvid, config)
+			if err != nil {
+				fmt.Printf("获取视频信息失败：%s，错误：%v\n", video.Title, err)
+				continue
+			}
+			video.Aid = vinfo.Aid
+			if len(vinfo.Pages) > 0 {
+				video.Cid = vinfo.Pages[0].Cid
+			}
+		}
+		
+		// 转换为SeasonVideo类型
+		seasonVideo := SeasonVideo{
+			Aid:      video.Aid,
+			Bvid:     video.Bvid,
+			Cid:      video.Cid,
+			Title:    video.Title,
+			Duration: video.Duration,
+			Cover:    video.Cover,
+			Index:    video.Index,
+			Part:     video.Part,
+		}
+		
+		// 调用下载单个视频的函数
+		err := downloadSingleVideoByInfo(seasonVideo, config)
+		if err != nil {
+			fmt.Printf("下载视频失败：%s，错误：%v\n", video.Title, err)
+			continue
+		}
+	}
+
+	fmt.Printf("\n合集下载完成：%s\n", seasonInfo.SeasonName)
+	return nil
+}
+
+// downloadMediaList 下载媒体列表
+func downloadMediaList(id string, config *Config) error {
+	medialistID := strings.TrimPrefix(id, "medialist:")
+	
+	// 获取媒体列表信息
+	medialistInfo, err := fetchMediaListInfo(medialistID, config)
+	if err != nil {
+		return err
+	}
+
+	if config.OnlyShowInfo {
+		fmt.Printf("媒体列表信息：\n")
+		fmt.Printf("标题：%s\n", medialistInfo.Title)
+		fmt.Printf("描述：%s\n", medialistInfo.Description)
+		fmt.Printf("视频数量：%d\n", medialistInfo.TotalCount)
+		for i, video := range medialistInfo.Videos {
+			fmt.Printf("%d. %s (%s)\n", i+1, video.Title, formatDuration(video.Duration))
+		}
+		return nil
+	}
+
+	fmt.Printf("开始下载媒体列表：%s\n", medialistInfo.Title)
+	fmt.Printf("包含 %d 个视频\n", medialistInfo.TotalCount)
+
+	// 下载每个视频
+	for i, video := range medialistInfo.Videos {
+		fmt.Printf("\n[%d/%d] 下载视频：%s\n", i+1, len(medialistInfo.Videos), video.Title)
+		
+		// 如果缺少aid或cid，先获取视频信息
+		if video.Aid == 0 || video.Cid == 0 {
+			vinfo, err := fetchVideoInfo(video.Bvid, config)
+			if err != nil {
+				fmt.Printf("获取视频信息失败：%s，错误：%v\n", video.Title, err)
+				continue
+			}
+			video.Aid = vinfo.Aid
+			if len(vinfo.Pages) > 0 {
+				video.Cid = vinfo.Pages[0].Cid
+			}
+		}
+		
+		// 转换为SeasonVideo类型
+		seasonVideo := SeasonVideo{
+			Aid:      video.Aid,
+			Bvid:     video.Bvid,
+			Cid:      video.Cid,
+			Title:    video.Title,
+			Duration: video.Duration,
+			Cover:    video.Cover,
+			Index:    video.Index,
+			Part:     video.Part,
+		}
+		
+		// 调用下载单个视频的函数
+		err := downloadSingleVideoByInfo(seasonVideo, config)
+		if err != nil {
+			fmt.Printf("下载视频失败：%s，错误：%v\n", video.Title, err)
+			continue
+		}
+	}
+
+	fmt.Printf("\n媒体列表下载完成：%s\n", medialistInfo.Title)
+	return nil
+}
+
+// downloadSingleVideo 下载单个视频（重用原有逻辑）
+func downloadSingleVideo(url string, config *Config) error {
+	// 提取视频ID
+	id, err := util.ExtractVideoID(url)
+	if err != nil {
+		return err
+	}
+
+	// 获取视频信息
+	vinfo, err := fetchVideoInfo(id, config)
+	if err != nil {
+		return err
+	}
+
+	// 选择分P
+	var selectedPages []Page
+	if config.SelectPage != "" {
+		selectedPages, err = parseSelectedPages(config.SelectPage, vinfo.Pages)
+		if err != nil {
+			return err
+		}
+	} else {
+		selectedPages = vinfo.Pages
+	}
+
+	// 下载每个分P
+	for _, page := range selectedPages {
+		fmt.Printf("正在下载分P：%s\n", page.Part)
+
+		// 提取音视频轨道
+		parser := NewParser(config)
+		aidStr := fmt.Sprintf("%d", vinfo.Aid)
+		cidStr := fmt.Sprintf("%d", page.Cid)
+		tracks, err := parser.ExtractTracks("", aidStr, aidStr, cidStr, "", config.UseTVApi, config.UseIntlApi, config.UseAppApi, "")
+		if err != nil {
+			return err
+		}
+
+		// 选择轨道
+		var selectedVideoTrack *Track
+		var selectedAudioTrack *Track
+
+		// 处理视频轨道选择
+		if !config.AudioOnly {
+			selectedVideoTrack, err = selectVideoTrack(tracks, config)
+			if err != nil {
+				return err
+			}
+		}
+
+		// 处理音频轨道选择
+		if !config.VideoOnly {
+			selectedAudioTrack, err = selectAudioTrack(tracks, config)
+			if err != nil {
+				return err
+			}
+		}
+
+		// 下载轨道
+		var videoPath, audioPath string
+		if selectedVideoTrack != nil {
+			fmt.Printf("正在下载视频：%s\n", selectedVideoTrack.Description)
+			videoPath = fmt.Sprintf("%s_video.mp4", page.Part)
+			err = downloadTrack(selectedVideoTrack, videoPath, config)
+			if err != nil {
+				return err
+			}
+		}
+
+		if selectedAudioTrack != nil {
+			fmt.Printf("正在下载音频：%s\n", selectedAudioTrack.Codec)
+			audioPath = fmt.Sprintf("%s_audio.mp4", page.Part)
+			err = downloadTrack(selectedAudioTrack, audioPath, config)
+			if err != nil {
+				return err
+			}
+		}
+
+		// 混流
+		if !config.SkipMux && selectedVideoTrack != nil && selectedAudioTrack != nil {
+			fmt.Printf("正在混流...\n")
+			// 生成输出文件名
+			fileName := page.Part
+			if fileName == "" {
+				// 如果分P标题为空，使用视频标题
+				fileName = vinfo.Title
+			}
+
+			// 如果有多个分P，在文件名中添加序号
+			if len(vinfo.Pages) > 1 {
+				fileName = fmt.Sprintf("%s_P%d", fileName, page.Index)
+			}
+
+			// 清理文件名中的非法字符
+			fileName = strings.ReplaceAll(fileName, "/", "_")
+			fileName = strings.ReplaceAll(fileName, "\\", "_")
+			fileName = strings.ReplaceAll(fileName, ":", "_")
+			fileName = strings.ReplaceAll(fileName, "*", "_")
+			fileName = strings.ReplaceAll(fileName, "?", "_")
+			fileName = strings.ReplaceAll(fileName, "\"", "_")
+			fileName = strings.ReplaceAll(fileName, "<", "_")
+			fileName = strings.ReplaceAll(fileName, ">", "_")
+			fileName = strings.ReplaceAll(fileName, "|", "_")
+
+			// 混流输出文件
+			videoOutputPath := fmt.Sprintf("%s.mp4", fileName)
+			err = muxTracks(selectedVideoTrack, selectedAudioTrack, videoPath, audioPath, videoOutputPath, config)
+			if err != nil {
+				return err
+			}
+
+			// 单独保存音频文件
+			if selectedAudioTrack != nil {
+				// 根据音频编码确定文件扩展名
+				audioExt := ".m4a" // 默认扩展名
+				if strings.Contains(strings.ToLower(selectedAudioTrack.Codec), "mp3") {
+					audioExt = ".mp3"
+				} else if strings.Contains(strings.ToLower(selectedAudioTrack.Codec), "aac") {
+					audioExt = ".aac"
+				} else if strings.Contains(strings.ToLower(selectedAudioTrack.Codec), "opus") {
+					audioExt = ".opus"
+				} else if strings.Contains(strings.ToLower(selectedAudioTrack.Codec), "flac") {
+					audioExt = ".flac"
+				}
+
+				audioOutputPath := fmt.Sprintf("%s%s", fileName, audioExt)
+
+				// 复制音频文件到最终位置
+				err = util.CopyFile(audioPath, audioOutputPath)
+				if err != nil {
+					fmt.Printf("保存音频文件失败: %v\n", err)
+				} else {
+					fmt.Printf("音频已保存: %s\n", audioOutputPath)
+				}
+			}
+
+			// 删除临时文件
+			if !config.SimplyMux {
+				os.Remove(videoPath)
+				os.Remove(audioPath)
+			}
+		}
+
+		fmt.Printf("分P下载完成：%s\n", page.Part)
+	}
+
+	return nil
+}
+
+// downloadSingleVideoByInfo 通过视频信息下载单个视频
+func downloadSingleVideoByInfo(video SeasonVideo, config *Config) error {
+	// 提取音视频轨道
+	parser := NewParser(config)
+	aidStr := fmt.Sprintf("%d", video.Aid)
+	cidStr := fmt.Sprintf("%d", video.Cid)
+	tracks, err := parser.ExtractTracks("", aidStr, aidStr, cidStr, "", config.UseTVApi, config.UseIntlApi, config.UseAppApi, "")
+	if err != nil {
+		return err
+	}
+
+	// 选择轨道
+	var selectedVideoTrack *Track
+	var selectedAudioTrack *Track
+
+	// 处理视频轨道选择
+	if !config.AudioOnly {
+		selectedVideoTrack, err = selectVideoTrack(tracks, config)
+		if err != nil {
+			return err
+		}
+	}
+
+	// 处理音频轨道选择
+	if !config.VideoOnly {
+		selectedAudioTrack, err = selectAudioTrack(tracks, config)
+		if err != nil {
+			return err
+		}
+	}
+
+	// 下载轨道
+	var videoPath, audioPath string
+	if selectedVideoTrack != nil {
+		fmt.Printf("正在下载视频：%s\n", selectedVideoTrack.Description)
+		videoPath = fmt.Sprintf("%s_video.mp4", video.Part)
+		err = downloadTrack(selectedVideoTrack, videoPath, config)
+		if err != nil {
+			return err
+		}
+	}
+
+	if selectedAudioTrack != nil {
+		fmt.Printf("正在下载音频：%s\n", selectedAudioTrack.Codec)
+		audioPath = fmt.Sprintf("%s_audio.mp4", video.Part)
+		err = downloadTrack(selectedAudioTrack, audioPath, config)
+		if err != nil {
+			return err
+		}
+	}
+
+	// 混流
+	if !config.SkipMux && selectedVideoTrack != nil && selectedAudioTrack != nil {
+		fmt.Printf("正在混流...\n")
+		// 生成输出文件名
+		fileName := video.Part
+		if fileName == "" {
+			// 如果分P标题为空，使用视频标题
+			fileName = video.Title
+		}
+
+		// 清理文件名中的非法字符
+		fileName = strings.ReplaceAll(fileName, "/", "_")
+		fileName = strings.ReplaceAll(fileName, "\\", "_")
+		fileName = strings.ReplaceAll(fileName, ":", "_")
+		fileName = strings.ReplaceAll(fileName, "*", "_")
+		fileName = strings.ReplaceAll(fileName, "?", "_")
+		fileName = strings.ReplaceAll(fileName, "\"", "_")
+		fileName = strings.ReplaceAll(fileName, "<", "_")
+		fileName = strings.ReplaceAll(fileName, ">", "_")
+		fileName = strings.ReplaceAll(fileName, "|", "_")
+
+		// 混流输出文件
+		videoOutputPath := fmt.Sprintf("%s.mp4", fileName)
+		err = muxTracks(selectedVideoTrack, selectedAudioTrack, videoPath, audioPath, videoOutputPath, config)
+		if err != nil {
+			return err
+		}
+
+		// 单独保存音频文件
+		if selectedAudioTrack != nil {
+			// 根据音频编码确定文件扩展名
+			audioExt := ".m4a" // 默认扩展名
+			if strings.Contains(strings.ToLower(selectedAudioTrack.Codec), "mp3") {
+				audioExt = ".mp3"
+			} else if strings.Contains(strings.ToLower(selectedAudioTrack.Codec), "aac") {
+				audioExt = ".aac"
+			} else if strings.Contains(strings.ToLower(selectedAudioTrack.Codec), "opus") {
+				audioExt = ".opus"
+			} else if strings.Contains(strings.ToLower(selectedAudioTrack.Codec), "flac") {
+				audioExt = ".flac"
+			}
+
+			audioOutputPath := fmt.Sprintf("%s%s", fileName, audioExt)
+
+			// 复制音频文件到最终位置
+			err = util.CopyFile(audioPath, audioOutputPath)
+			if err != nil {
+				fmt.Printf("保存音频文件失败: %v\n", err)
+			} else {
+				fmt.Printf("音频已保存: %s\n", audioOutputPath)
+			}
+		}
+
+		// 删除临时文件
+		if !config.SimplyMux {
+			os.Remove(videoPath)
+			os.Remove(audioPath)
+		}
+	}
+
+	return nil
+}
+
+// fetchSeasonInfo 获取合集信息
+func fetchSeasonInfo(seasonID string, config *Config) (*SeasonInfo, error) {
+	client := NewHTTPClient()
+	
+	// 尝试API端点
+	api := fmt.Sprintf("https://api.bilibili.com/x/space/season/video_list?season_id=%s&ps=30&jsonp=jsonp", seasonID)
+	
+	resp, err := client.GetWebSource(api, config.UserAgent)
+	if err != nil {
+		return nil, fmt.Errorf("API调用失败: %w", err)
+	}
+	
+	// 解析API响应
+	var response struct {
+		Code    int `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			SeasonID    string `json:"season_id"`
+			SeasonName  string `json:"season_name"`
+			Description string `json:"description"`
+			TotalCount  int    `json:"total"`
+			Archives    []struct {
+				Aid       int64  `json:"aid"`
+				Bvid      string `json:"bvid"`
+				Cid       int64  `json:"cid"`
+				Title     string `json:"title"`
+				Duration  int    `json:"duration"`
+				Cover     string `json:"cover"`
+				Index     int    `json:"index"`
+				Part      string `json:"part"`
+			} `json:"archives"`
+		} `json:"data"`
+	}
+
+	err = parseJSON(resp, &response)
+	if err != nil {
+		return nil, fmt.Errorf("解析API响应失败: %w", err)
+	}
+
+	if response.Code != 0 {
+		// 如果API失败，尝试网页解析
+		webURL := fmt.Sprintf("https://space.bilibili.com/89320896/lists/%s?type=season", seasonID)
+		webResp, webErr := client.GetWebSource(webURL, config.UserAgent)
+		if webErr != nil {
+			return nil, fmt.Errorf("API和网页解析都失败: API错误=%s, 网页错误=%w", response.Message, webErr)
+		}
+		return parseSeasonFromWeb(webResp, seasonID)
+	}
+
+	// 转换为SeasonInfo结构
+	seasonInfo := &SeasonInfo{
+		SeasonID:    response.Data.SeasonID,
+		SeasonName:  response.Data.SeasonName,
+		Description: response.Data.Description,
+		TotalCount:  response.Data.TotalCount,
+		Videos:      make([]SeasonVideo, len(response.Data.Archives)),
+	}
+
+	for i, archive := range response.Data.Archives {
+		seasonInfo.Videos[i] = SeasonVideo{
+			Aid:      archive.Aid,
+			Bvid:     archive.Bvid,
+			Cid:      archive.Cid,
+			Title:    archive.Title,
+			Duration: archive.Duration,
+			Cover:    archive.Cover,
+			Index:    archive.Index,
+			Part:     archive.Part,
+		}
+	}
+
+	return seasonInfo, nil
+
+	// 尝试解析不同的API响应格式
+	// 格式1: medialist info
+	var medialistResponse struct {
+		Code    int `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			ID          string `json:"id"`
+			Title       string `json:"title"`
+			Description string `json:"description"`
+			MediaCount  int    `json:"media_count"`
+			MediaList   []struct {
+				Aid       int64  `json:"aid"`
+				Bvid      string `json:"bvid"`
+				Cid       int64  `json:"cid"`
+				Title     string `json:"title"`
+				Duration  int    `json:"duration"`
+				Cover     string `json:"cover"`
+				Index     int    `json:"index"`
+				Part      string `json:"part"`
+			} `json:"medias"`
+		} `json:"data"`
+	}
+
+	err = parseJSON(resp, &medialistResponse)
+	if err == nil && medialistResponse.Code == 0 && len(medialistResponse.Data.MediaList) > 0 {
+		// 转换为SeasonInfo结构
+		seasonInfo := &SeasonInfo{
+			SeasonID:    medialistResponse.Data.ID,
+			SeasonName:  medialistResponse.Data.Title,
+			Description: medialistResponse.Data.Description,
+			TotalCount:  medialistResponse.Data.MediaCount,
+			Videos:      make([]SeasonVideo, len(medialistResponse.Data.MediaList)),
+		}
+
+		for i, media := range medialistResponse.Data.MediaList {
+			seasonInfo.Videos[i] = SeasonVideo{
+				Aid:      media.Aid,
+				Bvid:     media.Bvid,
+				Cid:      media.Cid,
+				Title:    media.Title,
+				Duration: media.Duration,
+				Cover:    media.Cover,
+				Index:    i + 1,
+				Part:     media.Part,
+			}
+		}
+
+		return seasonInfo, nil
+	}
+
+	// 格式2: space season video_list
+	var spaceSeasonResponse struct {
+		Code    int `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			SeasonID    string `json:"season_id"`
+			SeasonName  string `json:"season_name"`
+			Description string `json:"description"`
+			TotalCount  int    `json:"total"`
+			Archives    []struct {
+				Aid       int64  `json:"aid"`
+				Bvid      string `json:"bvid"`
+				Cid       int64  `json:"cid"`
+				Title     string `json:"title"`
+				Duration  int    `json:"duration"`
+				Cover     string `json:"cover"`
+				Index     int    `json:"index"`
+				Part      string `json:"part"`
+			} `json:"archives"`
+		} `json:"data"`
+	}
+
+	err = parseJSON(resp, &spaceSeasonResponse)
+	if err == nil && spaceSeasonResponse.Code == 0 && len(spaceSeasonResponse.Data.Archives) > 0 {
+		// 转换为SeasonInfo结构
+		seasonInfo := &SeasonInfo{
+			SeasonID:    spaceSeasonResponse.Data.SeasonID,
+			SeasonName:  spaceSeasonResponse.Data.SeasonName,
+			Description: spaceSeasonResponse.Data.Description,
+			TotalCount:  spaceSeasonResponse.Data.TotalCount,
+			Videos:      make([]SeasonVideo, len(spaceSeasonResponse.Data.Archives)),
+		}
+
+		for i, archive := range spaceSeasonResponse.Data.Archives {
+			seasonInfo.Videos[i] = SeasonVideo{
+				Aid:      archive.Aid,
+				Bvid:     archive.Bvid,
+				Cid:      archive.Cid,
+				Title:    archive.Title,
+				Duration: archive.Duration,
+				Cover:    archive.Cover,
+				Index:    archive.Index,
+				Part:     archive.Part,
+			}
+		}
+
+		return seasonInfo, nil
+	}
+
+	return nil, fmt.Errorf("无法解析API响应: %s", resp[:min(len(resp), 200)])
+}
+
+// parseSeasonFromWeb 从网页解析合集信息
+func parseSeasonFromWeb(html, seasonID string) (*SeasonInfo, error) {
+	// 使用正则表达式提取合集信息
+	// 查找初始化数据的JSON
+	jsonRegex := regexp.MustCompile(`window\.__INITIAL_STATE__\s*=\s*({.*?});`)
+	matches := jsonRegex.FindStringSubmatch(html)
+	if len(matches) < 2 {
+		return nil, fmt.Errorf("无法从网页中找到初始化数据")
+	}
+	
+	jsonStr := matches[1]
+	
+	// 解析JSON
+	var initialState map[string]interface{}
+	err := parseJSON(jsonStr, &initialState)
+	if err != nil {
+		return nil, fmt.Errorf("解析初始化数据失败: %w", err)
+	}
+	
+	// 尝试从不同的路径获取合集信息
+	var seasonData map[string]interface{}
+	
+	// 尝试路径1
+	if space, ok := initialState["space"].(map[string]interface{}); ok {
+		if seasons, ok := space["seasons"].(map[string]interface{}); ok {
+			if currentSeason, ok := seasons[seasonID].(map[string]interface{}); ok {
+				seasonData = currentSeason
+			}
+		}
+	}
+	
+	// 尝试路径2
+	if seasonData == nil {
+		if seasons, ok := initialState["seasons"].(map[string]interface{}); ok {
+			if currentSeason, ok := seasons[seasonID].(map[string]interface{}); ok {
+				seasonData = currentSeason
+			}
+		}
+	}
+	
+	if seasonData == nil {
+		// 尝试从网页中提取基本信息
+		return extractBasicSeasonInfo(html, seasonID)
+	}
+	
+	// 提取基本信息
+	seasonName := getStringFromMap(seasonData, "name")
+	description := getStringFromMap(seasonData, "description")
+	
+	// 提取视频列表
+	var videos []SeasonVideo
+	if archives, ok := seasonData["archives"].([]interface{}); ok {
+		for _, archive := range archives {
+			if archiveMap, ok := archive.(map[string]interface{}); ok {
+				video := SeasonVideo{
+					Aid:      getInt64FromMap(archiveMap, "aid"),
+					Bvid:     getStringFromMap(archiveMap, "bvid"),
+					Cid:      getInt64FromMap(archiveMap, "cid"),
+					Title:    getStringFromMap(archiveMap, "title"),
+					Duration: getIntFromMap(archiveMap, "duration"),
+					Cover:    getStringFromMap(archiveMap, "cover"),
+					Index:    getIntFromMap(archiveMap, "index"),
+					Part:     getStringFromMap(archiveMap, "part"),
+				}
+				videos = append(videos, video)
+			}
+		}
+	}
+	
+	return &SeasonInfo{
+		SeasonID:    seasonID,
+		SeasonName:  seasonName,
+		Description: description,
+		TotalCount:  len(videos),
+		Videos:      videos,
+	}, nil
+}
+
+// extractBasicSeasonInfo 从网页中提取基本合集信息（备用方案）
+func extractBasicSeasonInfo(html, seasonID string) (*SeasonInfo, error) {
+	// 提取合集标题
+	titleRegex := regexp.MustCompile(`<h1[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)</h1>`)
+	titleMatches := titleRegex.FindStringSubmatch(html)
+	seasonName := "未知合集"
+	if len(titleMatches) > 1 {
+		seasonName = strings.TrimSpace(titleMatches[1])
+	}
+	
+	// 提取视频列表
+	videoRegex := regexp.MustCompile(`<a[^>]*href="([^"]*video/([^"]*))"[^>]*>.*?<span[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)</span>`)
+	videoMatches := videoRegex.FindAllStringSubmatch(html, -1)
+	
+	var videos []SeasonVideo
+	for i, match := range videoMatches {
+		if len(match) >= 4 {
+			bvid := match[2]
+			title := strings.TrimSpace(match[3])
+			
+			video := SeasonVideo{
+				Aid:      0, // 需要通过bvid获取
+				Bvid:     bvid,
+				Cid:      0, // 需要后续获取
+				Title:    title,
+				Duration: 0, // 需要后续获取
+				Cover:    "",
+				Index:    i + 1,
+				Part:     title,
+			}
+			videos = append(videos, video)
+		}
+	}
+	
+	if len(videos) == 0 {
+		return nil, fmt.Errorf("无法从网页中提取视频列表")
+	}
+	
+	return &SeasonInfo{
+		SeasonID:    seasonID,
+		SeasonName:  seasonName,
+		Description: "",
+		TotalCount:  len(videos),
+		Videos:      videos,
+	}, nil
+}
+
+// getStringFromMap 从map中安全获取字符串值
+func getStringFromMap(m map[string]interface{}, key string) string {
+	if val, ok := m[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return ""
+}
+
+// getIntFromMap 从map中安全获取int值
+func getIntFromMap(m map[string]interface{}, key string) int {
+	if val, ok := m[key]; ok {
+		if f, ok := val.(float64); ok {
+			return int(f)
+		}
+		if i, ok := val.(int); ok {
+			return i
+		}
+	}
+	return 0
+}
+
+// getInt64FromMap 从map中安全获取int64值
+func getInt64FromMap(m map[string]interface{}, key string) int64 {
+	if val, ok := m[key]; ok {
+		if f, ok := val.(float64); ok {
+			return int64(f)
+		}
+		if i, ok := val.(int); ok {
+			return int64(i)
+		}
+		if i64, ok := val.(int64); ok {
+			return i64
+		}
+	}
+	return 0
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// fetchMediaListInfo 获取媒体列表信息
+func fetchMediaListInfo(medialistID string, config *Config) (*MediaListInfo, error) {
+	client := NewHTTPClient()
+	
+	// 获取媒体列表信息API
+	api := fmt.Sprintf("https://api.bilibili.com/x/v2/medialist/info?ml_id=%s", medialistID)
+	
+	resp, err := client.GetWebSource(api, config.UserAgent)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	var response struct {
+		Code    int `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			ID          string `json:"id"`
+			Title       string `json:"title"`
+			Description string `json:"description"`
+			MediaCount  int    `json:"media_count"`
+			MediaList   []struct {
+				Aid       int64  `json:"aid"`
+				Bvid      string `json:"bvid"`
+				Cid       int64  `json:"cid"`
+				Title     string `json:"title"`
+				Duration  int    `json:"duration"`
+				Cover     string `json:"cover"`
+				Index     int    `json:"index"`
+				Part      string `json:"part"`
+			} `json:"medias"`
+		} `json:"data"`
+	}
+
+	err = parseJSON(resp, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	if response.Code != 0 {
+		return nil, fmt.Errorf("API错误: %s", response.Message)
+	}
+
+	// 转换为MediaListInfo结构
+	medialistInfo := &MediaListInfo{
+		ID:          response.Data.ID,
+		Title:       response.Data.Title,
+		Description: response.Data.Description,
+		TotalCount:  response.Data.MediaCount,
+		Videos:      make([]MediaVideo, len(response.Data.MediaList)),
+	}
+
+	for i, media := range response.Data.MediaList {
+		medialistInfo.Videos[i] = MediaVideo{
+			Aid:      media.Aid,
+			Bvid:     media.Bvid,
+			Cid:      media.Cid,
+			Title:    media.Title,
+			Duration: media.Duration,
+			Cover:    media.Cover,
+			Index:    media.Index,
+			Part:     media.Part,
+		}
+	}
+
+	return medialistInfo, nil
+}
+
+// formatDuration 格式化时长
+func formatDuration(seconds int) string {
+	h := seconds / 3600
+	m := (seconds % 3600) / 60
+	s := seconds % 60
+	
+	if h > 0 {
+		return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
+	}
+	return fmt.Sprintf("%02d:%02d", m, s)
 }

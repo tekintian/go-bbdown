@@ -73,7 +73,9 @@ var rootCmd = &cobra.Command{
 - EP号: ep123456
 - SS号: ss123456
 - 完整链接: https://www.bilibili.com/video/BV1xx411c7mD
-- 番剧链接: https://www.bilibili.com/bangumi/play/ss123456`,
+- 番剧链接: https://www.bilibili.com/bangumi/play/ss123456
+- 合集链接: https://space.bilibili.com/89320896/lists/5348941?type=season
+- 媒体列表: https://www.bilibili.com/medialist/detail/ml123456`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		var url string

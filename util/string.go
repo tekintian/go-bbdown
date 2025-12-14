@@ -31,6 +31,8 @@ var (
 	cheeseSsRegex   = regexp.MustCompile(`/cheese/play/ss(\d+)`)
 	collectionRegex = regexp.MustCompile(`business_id=(\d+)`)
 	seriesRegex     = regexp.MustCompile(`business_id=(\d+)`)
+	seasonRegex     = regexp.MustCompile(`/lists/(\d+)`)
+	medialistRegex  = regexp.MustCompile(`medialist/detail/ml(\d+)`)
 )
 
 // NewBVConverter 创建BV转换器
@@ -214,6 +216,22 @@ func ExtractFromURL(url string) (string, string, error) {
 		}
 	}
 
+	// 合集列表
+	if seasonRegex.MatchString(url) {
+		matches := seasonRegex.FindStringSubmatch(url)
+		if len(matches) > 1 {
+			return "season", matches[1], nil
+		}
+	}
+
+	// 媒体列表
+	if medialistRegex.MatchString(url) {
+		matches := medialistRegex.FindStringSubmatch(url)
+		if len(matches) > 1 {
+			return "medialist", matches[1], nil
+		}
+	}
+
 	// 直接匹配
 	if strings.HasPrefix(url, "BV") {
 		return "bv", url, nil
@@ -344,6 +362,10 @@ func ExtractVideoID(input string) (string, error) {
 		return "cheese:" + id, nil
 	case "cheese_ss":
 		return "cheese:" + id, nil
+	case "season":
+		return "season:" + id, nil
+	case "medialist":
+		return "medialist:" + id, nil
 	default:
 		return id, nil
 	}
