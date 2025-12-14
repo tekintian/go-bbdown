@@ -1282,7 +1282,30 @@ func fetchSeasonInfo(seasonID string, config *Config) (*SeasonInfo, error) {
 		return nil, fmt.Errorf("API调用失败: %w", err)
 	}
 	
-	// 解析API响应
+	// 尝试不同的解析方式
+	parsers := []func(string) (*SeasonInfo, error){
+		parseSeasonFromSpaceAPI,
+		parseSeasonFromMedialistAPI,
+		parseSeasonFromSpaceSeasonAPI,
+	}
+	
+	for _, parser := range parsers {
+		if seasonInfo, err := parser(resp); err == nil && seasonInfo != nil {
+			return seasonInfo, nil
+		}
+	}
+	
+	// 如果API解析都失败，尝试网页解析
+	webURL := fmt.Sprintf("https://space.bilibili.com/89320896/lists/%s?type=season", seasonID)
+	webResp, webErr := client.GetWebSource(webURL, config.UserAgent)
+	if webErr != nil {
+		return nil, fmt.Errorf("所有API解析和网页解析都失败: %w", webErr)
+	}
+	return parseSeasonFromWeb(webResp, seasonID)
+}
+
+// parseSeasonFromSpaceAPI 从空间API解析合集信息
+func parseSeasonFromSpaceAPI(resp string) (*SeasonInfo, error) {
 	var response struct {
 		Code    int `json:"code"`
 		Message string `json:"message"`
@@ -1304,19 +1327,9 @@ func fetchSeasonInfo(seasonID string, config *Config) (*SeasonInfo, error) {
 		} `json:"data"`
 	}
 
-	err = parseJSON(resp, &response)
-	if err != nil {
-		return nil, fmt.Errorf("解析API响应失败: %w", err)
-	}
-
-	if response.Code != 0 {
-		// 如果API失败，尝试网页解析
-		webURL := fmt.Sprintf("https://space.bilibili.com/89320896/lists/%s?type=season", seasonID)
-		webResp, webErr := client.GetWebSource(webURL, config.UserAgent)
-		if webErr != nil {
-			return nil, fmt.Errorf("API和网页解析都失败: API错误=%s, 网页错误=%w", response.Message, webErr)
-		}
-		return parseSeasonFromWeb(webResp, seasonID)
+	err := parseJSON(resp, &response)
+	if err != nil || response.Code != 0 {
+		return nil, fmt.Errorf("API响应失败或解析错误")
 	}
 
 	// 转换为SeasonInfo结构
@@ -1342,9 +1355,10 @@ func fetchSeasonInfo(seasonID string, config *Config) (*SeasonInfo, error) {
 	}
 
 	return seasonInfo, nil
+}
 
-	// 尝试解析不同的API响应格式
-	// 格式1: medialist info
+// parseSeasonFromMedialistAPI 从medialist API解析合集信息
+func parseSeasonFromMedialistAPI(resp string) (*SeasonInfo, error) {
 	var medialistResponse struct {
 		Code    int `json:"code"`
 		Message string `json:"message"`
@@ -1366,34 +1380,38 @@ func fetchSeasonInfo(seasonID string, config *Config) (*SeasonInfo, error) {
 		} `json:"data"`
 	}
 
-	err = parseJSON(resp, &medialistResponse)
-	if err == nil && medialistResponse.Code == 0 && len(medialistResponse.Data.MediaList) > 0 {
-		// 转换为SeasonInfo结构
-		seasonInfo := &SeasonInfo{
-			SeasonID:    medialistResponse.Data.ID,
-			SeasonName:  medialistResponse.Data.Title,
-			Description: medialistResponse.Data.Description,
-			TotalCount:  medialistResponse.Data.MediaCount,
-			Videos:      make([]SeasonVideo, len(medialistResponse.Data.MediaList)),
-		}
-
-		for i, media := range medialistResponse.Data.MediaList {
-			seasonInfo.Videos[i] = SeasonVideo{
-				Aid:      media.Aid,
-				Bvid:     media.Bvid,
-				Cid:      media.Cid,
-				Title:    media.Title,
-				Duration: media.Duration,
-				Cover:    media.Cover,
-				Index:    i + 1,
-				Part:     media.Part,
-			}
-		}
-
-		return seasonInfo, nil
+	err := parseJSON(resp, &medialistResponse)
+	if err != nil || medialistResponse.Code != 0 || len(medialistResponse.Data.MediaList) == 0 {
+		return nil, fmt.Errorf("medialist API解析失败")
 	}
 
-	// 格式2: space season video_list
+	// 转换为SeasonInfo结构
+	seasonInfo := &SeasonInfo{
+		SeasonID:    medialistResponse.Data.ID,
+		SeasonName:  medialistResponse.Data.Title,
+		Description: medialistResponse.Data.Description,
+		TotalCount:  medialistResponse.Data.MediaCount,
+		Videos:      make([]SeasonVideo, len(medialistResponse.Data.MediaList)),
+	}
+
+	for i, media := range medialistResponse.Data.MediaList {
+		seasonInfo.Videos[i] = SeasonVideo{
+			Aid:      media.Aid,
+			Bvid:     media.Bvid,
+			Cid:      media.Cid,
+			Title:    media.Title,
+			Duration: media.Duration,
+			Cover:    media.Cover,
+			Index:    i + 1,
+			Part:     media.Part,
+		}
+	}
+
+	return seasonInfo, nil
+}
+
+// parseSeasonFromSpaceSeasonAPI 从space season API解析合集信息
+func parseSeasonFromSpaceSeasonAPI(resp string) (*SeasonInfo, error) {
 	var spaceSeasonResponse struct {
 		Code    int `json:"code"`
 		Message string `json:"message"`
@@ -1415,34 +1433,34 @@ func fetchSeasonInfo(seasonID string, config *Config) (*SeasonInfo, error) {
 		} `json:"data"`
 	}
 
-	err = parseJSON(resp, &spaceSeasonResponse)
-	if err == nil && spaceSeasonResponse.Code == 0 && len(spaceSeasonResponse.Data.Archives) > 0 {
-		// 转换为SeasonInfo结构
-		seasonInfo := &SeasonInfo{
-			SeasonID:    spaceSeasonResponse.Data.SeasonID,
-			SeasonName:  spaceSeasonResponse.Data.SeasonName,
-			Description: spaceSeasonResponse.Data.Description,
-			TotalCount:  spaceSeasonResponse.Data.TotalCount,
-			Videos:      make([]SeasonVideo, len(spaceSeasonResponse.Data.Archives)),
-		}
-
-		for i, archive := range spaceSeasonResponse.Data.Archives {
-			seasonInfo.Videos[i] = SeasonVideo{
-				Aid:      archive.Aid,
-				Bvid:     archive.Bvid,
-				Cid:      archive.Cid,
-				Title:    archive.Title,
-				Duration: archive.Duration,
-				Cover:    archive.Cover,
-				Index:    archive.Index,
-				Part:     archive.Part,
-			}
-		}
-
-		return seasonInfo, nil
+	err := parseJSON(resp, &spaceSeasonResponse)
+	if err != nil || spaceSeasonResponse.Code != 0 || len(spaceSeasonResponse.Data.Archives) == 0 {
+		return nil, fmt.Errorf("space season API解析失败")
 	}
 
-	return nil, fmt.Errorf("无法解析API响应: %s", resp[:min(len(resp), 200)])
+	// 转换为SeasonInfo结构
+	seasonInfo := &SeasonInfo{
+		SeasonID:    spaceSeasonResponse.Data.SeasonID,
+		SeasonName:  spaceSeasonResponse.Data.SeasonName,
+		Description: spaceSeasonResponse.Data.Description,
+		TotalCount:  spaceSeasonResponse.Data.TotalCount,
+		Videos:      make([]SeasonVideo, len(spaceSeasonResponse.Data.Archives)),
+	}
+
+	for i, archive := range spaceSeasonResponse.Data.Archives {
+		seasonInfo.Videos[i] = SeasonVideo{
+			Aid:      archive.Aid,
+			Bvid:     archive.Bvid,
+			Cid:      archive.Cid,
+			Title:    archive.Title,
+			Duration: archive.Duration,
+			Cover:    archive.Cover,
+			Index:    archive.Index,
+			Part:     archive.Part,
+		}
+	}
+
+	return seasonInfo, nil
 }
 
 // parseSeasonFromWeb 从网页解析合集信息
