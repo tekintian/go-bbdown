@@ -1,0 +1,280 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.21'
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run tests
+      run: go test -v ./...
+
+    - name: Run go vet
+      run: go vet ./...
+
+    - name: Run go fmt
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "The following files are not formatted:"
+          gofmt -s -l .
+          exit 1
+        fi
+
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    needs: test
+    strategy:
+      matrix:
+        include:
+          # Linux
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            output: bbdown-linux-amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            output: bbdown-linux-arm64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: 386
+            output: bbdown-linux-386
+          
+          # macOS
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            output: bbdown-darwin-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            output: bbdown-darwin-arm64
+          
+          # Windows
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            output: bbdown-windows-amd64.exe
+          - os: windows-latest
+            goos: windows
+            goarch: 386
+            output: bbdown-windows-386.exe
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-${{ matrix.goos }}-${{ matrix.goarch }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.goos }}-${{ matrix.goarch }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o ${{ matrix.output }} main.go
+
+    - name: Create archive (Unix)
+      if: matrix.os != 'windows-latest'
+      run: |
+        tar -czf ${{ matrix.output }}.tar.gz ${{ matrix.output }}
+        sha256sum ${{ matrix.output }}.tar.gz > ${{ matrix.output }}.tar.gz.sha256
+
+    - name: Create archive (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        Compress-Archive -Path ${{ matrix.output }} -DestinationPath ${{ matrix.output }}.zip
+        (Get-FileHash ${{ matrix.output }}.zip -Algorithm SHA256).Hash | Out-File ${{ matrix.output }}.zip.sha256
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.output }}-artifacts
+        path: |
+          ${{ matrix.output }}.*
+        retention-days: 30
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Prepare release assets
+      run: |
+        mkdir -p release
+        find artifacts -name "*.tar.gz" -exec cp {} release/ \;
+        find artifacts -name "*.zip" -exec cp {} release/ \;
+        find artifacts -name "*.sha256" -exec cp {} release/ \;
+        ls -la release/
+
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        # 提取版本号
+        VERSION=${GITHUB_REF#refs/tags/}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+        # 生成变更日志
+        cat > release_notes.md << EOF
+        ## 🚀 BBDown Go版本 $VERSION 发布
+        
+        ### 📦 下载文件说明
+        - \`bbdown-linux-amd64.tar.gz\`: Linux x86_64 系统
+        - \`bbdown-linux-arm64.tar.gz\`: Linux ARM64 系统 (树莓派等)
+        - \`bbdown-linux-386.tar.gz\`: Linux x86 系统
+        - \`bbdown-darwin-amd64.tar.gz\`: macOS Intel 系统
+        - \`bbdown-darwin-arm64.tar.gz\`: macOS Apple Silicon (M1/M2) 系统
+        - \`bbdown-windows-amd64.exe.zip\`: Windows x86_64 系统
+        - \`bbdown-windows-386.exe.zip\`: Windows x86 系统
+        
+        ### 🔐 文件校验
+        所有下载文件都包含对应的 SHA256 校验文件，请验证文件完整性：
+        \`\`\`bash
+        sha256sum -c bbdown-*.sha256
+        \`\`\`
+        
+        ### 🚀 快速开始
+        1. 下载对应平台的压缩包
+        2. 解压获得可执行文件
+        3. (Linux/macOS) \`chmod +x bbdown\`
+        4. 运行 \`./bbdown --help\` 查看帮助
+        
+        ### 📚 更多信息
+        - [使用文档](https://github.com/tekintian/go-bbdown#readme)
+        - [问题反馈](https://github.com/tekintian/go-bbdown/issues)
+        
+        ---
+        **注意**: 本工具仅供学习和研究使用，请遵守相关法律法规。
+        EOF
+        
+        # 设置输出
+        {
+          echo "release_notes<<EOF"
+          cat release_notes.md
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: BBDown Go版本 ${{ steps.release_notes.outputs.version }}
+        body: ${{ steps.release_notes.outputs.release_notes }}
+        files: |
+          release/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: bbdown/go-bbdown
+        tags: |
+          type=ref,event=tag
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          latest
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  update-homebrew:
+    name: Update Homebrew formula
+    runs-on: ubuntu-latest
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+    - name: Update Homebrew formula
+      uses: dawidd6/action-homebrew-bump-formula@v3
+      with:
+        token: ${{ secrets.HOMEBREW_TOKEN }}
+        formula: bbdown
+        base-branch: master
+        force: true
