@@ -129,22 +129,6 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Clean Go modules cache
-      shell: bash
-      run: |
-        rm -rf ~/go/pkg/mod 2>/dev/null || true
-        rm -rf ~/.cache/go-build 2>/dev/null || true
-
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-${{ matrix.goos }}-${{ matrix.goarch }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ matrix.goos }}-${{ matrix.goarch }}-go-
-
     - name: Download dependencies
       run: go mod download
 
