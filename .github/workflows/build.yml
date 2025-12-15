@@ -160,7 +160,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         Get-Item ${{ matrix.output }}
-        ls -la ${{ matrix.output }}
+        Get-ChildItem ${{ matrix.output }} | Format-Table Name, Length, LastWriteTime
 
     - name: Create archive (Unix)
       if: matrix.os != 'windows-latest'
