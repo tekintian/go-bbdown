@@ -55,7 +55,7 @@ jobs:
     - name: Check goimports
       run: |
         if ! command -v goimports &> /dev/null; then
-          go install golang.org/x/tools/cmd/goimports@latest
+          go install golang.org/x/tools/cmd/goimports@v0.16.0
         fi
         if [ "$(goimports -l . | wc -l)" -gt 0 ]; then
           echo "The following files have import issues:"
