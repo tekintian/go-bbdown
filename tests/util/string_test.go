@@ -47,21 +47,21 @@ func TestExtractFromURL(t *testing.T) {
 			name:     "合集URL-无参数",
 			url:      "https://space.bilibili.com/89320896/lists/5348941",
 			wantType: "season",
-			wantID:   "5348941",
+			wantID:   "89320896:5348941",
 			wantErr:  false,
 		},
 		{
 			name:     "合集URL-带参数",
 			url:      "https://space.bilibili.com/89320896/lists/5348941?type=season",
 			wantType: "season",
-			wantID:   "5348941",
+			wantID:   "89320896:5348941",
 			wantErr:  false,
 		},
 		{
 			name:     "合集URL-多参数",
 			url:      "https://space.bilibili.com/89320896/lists/5348941?type=season&spm_id_from=333.999.0.0",
 			wantType: "season",
-			wantID:   "5348941",
+			wantID:   "89320896:5348941",
 			wantErr:  false,
 		},
 		{
@@ -178,13 +178,13 @@ func TestExtractVideoID(t *testing.T) {
 		{
 			name:    "合集URL",
 			input:   "https://space.bilibili.com/89320896/lists/5348941",
-			want:    "season:5348941",
+			want:    "season:89320896:5348941",
 			wantErr: false,
 		},
 		{
 			name:    "合集URL带参数",
 			input:   "https://space.bilibili.com/89320896/lists/5348941?type=season",
-			want:    "season:5348941",
+			want:    "season:89320896:5348941",
 			wantErr: false,
 		},
 		{

@@ -194,3 +194,23 @@ type MediaVideo struct {
 	Index    int    `json:"index"`
 	Part     string `json:"part"`
 }
+
+// FavoriteInfo 收藏夹信息
+type FavoriteInfo struct {
+	ID          string         `json:"id"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	TotalCount  int            `json:"total_count"`
+	Videos      []FavoriteVideo `json:"videos"`
+}
+
+// FavoriteVideo 收藏夹中的视频
+type FavoriteVideo struct {
+	Aid      int64  `json:"aid"`
+	Bvid     string `json:"bvid"`
+	Cid      int64  `json:"cid"`
+	Title    string `json:"title"`
+	Duration int    `json:"duration"`
+	Cover    string `json:"cover"`
+	Part     string `json:"part"`
+}

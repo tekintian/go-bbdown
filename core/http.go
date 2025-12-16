@@ -56,12 +56,26 @@ func (h *HTTPClient) GetWebSource(urlStr, userAgent string) (string, error) {
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept-Encoding", "gzip, deflate")
 	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Pragma", "no-cache")
+	req.Header.Set("Sec-Ch-Ua", `"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"`)
+	req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
+	req.Header.Set("Sec-Ch-Ua-Platform", `"macOS"`)
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Site", "none")
+	req.Header.Set("Sec-Fetch-User", "?1")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
 
 	if strings.Contains(urlStr, "api.bilibili.com") {
 		req.Header.Set("Referer", "https://www.bilibili.com/")
 	}
 	if strings.Contains(urlStr, "api.bilibili.tv") {
 		req.Header.Set("sec-ch-ua", `"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"`)
+	}
+	if strings.Contains(urlStr, "space.bilibili.com") {
+		req.Header.Set("Referer", "https://www.bilibili.com/")
 	}
 
 	req.Header.Set("Cache-Control", "no-cache")
@@ -74,6 +88,10 @@ func (h *HTTPClient) GetWebSource(urlStr, userAgent string) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		// 处理频率限制
+		if resp.StatusCode == 429 {
+			return "", fmt.Errorf("请求过于频繁，请稍后再试")
+		}
 		return "", fmt.Errorf("HTTP状态码: %d", resp.StatusCode)
 	}
 
@@ -119,6 +137,10 @@ func (h *HTTPClient) GetWebLocation(urlStr, userAgent string) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		// 处理频率限制
+		if resp.StatusCode == 429 {
+			return "", fmt.Errorf("请求过于频繁，请稍后再试")
+		}
 		return "", fmt.Errorf("HTTP状态码: %d", resp.StatusCode)
 	}
 
@@ -153,6 +175,10 @@ func (h *HTTPClient) PostRequest(urlStr string, data []byte, headers map[string]
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		// 处理频率限制
+		if resp.StatusCode == 429 {
+			return "", fmt.Errorf("请求过于频繁，请稍后再试")
+		}
 		return "", fmt.Errorf("HTTP状态码: %d", resp.StatusCode)
 	}
 

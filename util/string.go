@@ -31,7 +31,7 @@ var (
 	cheeseSsRegex   = regexp.MustCompile(`/cheese/play/ss(\d+)`)
 	collectionRegex = regexp.MustCompile(`business_id=(\d+)`)
 	seriesRegex     = regexp.MustCompile(`business_id=(\d+)`)
-	seasonRegex     = regexp.MustCompile(`/lists/(\d+)`)
+	seasonRegex     = regexp.MustCompile(`space\.bilibili\.com/(\d+)/lists/(\d+)`)
 	medialistRegex  = regexp.MustCompile(`medialist/detail/ml(\d+)`)
 )
 
@@ -219,6 +219,11 @@ func ExtractFromURL(url string) (string, string, error) {
 	// 合集列表
 	if seasonRegex.MatchString(url) {
 		matches := seasonRegex.FindStringSubmatch(url)
+		if len(matches) > 2 {
+			// 返回格式 "season:用户ID:合集ID"
+			return "season", matches[1] + ":" + matches[2], nil
+		}
+		// 兼容旧格式，只包含合集ID
 		if len(matches) > 1 {
 			return "season", matches[1], nil
 		}

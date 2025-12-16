@@ -367,10 +367,19 @@ func (p *Parser) parseDashData(dash map[string]interface{}) ([]*Track, error) {
 	if videoData, ok := dash["video"].([]interface{}); ok {
 		for _, v := range videoData {
 			if video, ok := v.(map[string]interface{}); ok {
+				// 尝试获取最佳URL，优先使用backup_url
+				baseURL := p.getStringValue(video, "base_url")
+				if backupUrls, ok := video["backup_url"].([]interface{}); ok && len(backupUrls) > 0 {
+					// 使用第一个备用URL
+					if backupURL, ok := backupUrls[0].(string); ok && backupURL != "" {
+						baseURL = backupURL
+					}
+				}
+
 				track := &Track{
 					ID:          p.getIntValue(video, "id"),
 					Description: getQualityDesc(p.getIntValue(video, "id")),
-					URL:         p.getStringValue(video, "base_url"),
+					URL:         baseURL,
 					Bandwidth:   p.getIntValue(video, "bandwidth") / 1000,
 					FrameType:   "video",
 					Codec:       p.getVideoCodec(p.getIntValue(video, "codecid")),
@@ -399,10 +408,19 @@ func (p *Parser) parseDashData(dash map[string]interface{}) ([]*Track, error) {
 					codecs = "FLAC"
 				}
 
+				// 尝试获取最佳URL，优先使用backup_url
+				baseURL := p.getStringValue(audio, "base_url")
+				if backupUrls, ok := audio["backup_url"].([]interface{}); ok && len(backupUrls) > 0 {
+					// 使用第一个备用URL
+					if backupURL, ok := backupUrls[0].(string); ok && backupURL != "" {
+						baseURL = backupURL
+					}
+				}
+
 				track := &Track{
 					ID:          p.getIntValue(audio, "id"),
 					Description: p.getStringValue(audio, "id"),
-					URL:         p.getStringValue(audio, "base_url"),
+					URL:         baseURL,
 					Bandwidth:   p.getIntValue(audio, "bandwidth") / 1000,
 					FrameType:   "audio",
 					Codec:       codecs,
@@ -417,10 +435,19 @@ func (p *Parser) parseDashData(dash map[string]interface{}) ([]*Track, error) {
 		if dolbyAudio, ok := dolby["audio"].([]interface{}); ok {
 			for _, a := range dolbyAudio {
 				if audio, ok := a.(map[string]interface{}); ok {
+					// 尝试获取最佳URL，优先使用backup_url
+					baseURL := p.getStringValue(audio, "base_url")
+					if backupUrls, ok := audio["backup_url"].([]interface{}); ok && len(backupUrls) > 0 {
+						// 使用第一个备用URL
+						if backupURL, ok := backupUrls[0].(string); ok && backupURL != "" {
+							baseURL = backupURL
+						}
+					}
+
 					track := &Track{
 						ID:          p.getIntValue(audio, "id"),
 						Description: p.getStringValue(audio, "id"),
-						URL:         p.getStringValue(audio, "base_url"),
+						URL:         baseURL,
 						Bandwidth:   p.getIntValue(audio, "bandwidth") / 1000,
 						FrameType:   "audio",
 						Codec:       "E-AC-3",
